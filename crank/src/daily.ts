@@ -65,7 +65,10 @@ async function main() {
     fs.readFileSync(schedulePath, "utf-8")
   );
 
-  const now = new Date();
+  // CRANK_DATE overrides "today" for testing (format: YYYY-MM-DD)
+  const now = process.env.CRANK_DATE
+    ? new Date(process.env.CRANK_DATE + "T00:00:00Z")
+    : new Date();
   const todayStr = isoDate(now);
   const yesterdayStr = isoDate(new Date(now.getTime() - 86_400_000));
 

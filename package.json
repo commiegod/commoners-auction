@@ -5,6 +5,7 @@
     "crank:create": "tsx crank/src/create_auction.ts",
     "crank:settle": "tsx crank/src/settle_auction.ts",
     "crank:daily": "tsx crank/src/daily.ts",
+    "crank:list": "tsx crank/src/list_slot.ts",
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },
