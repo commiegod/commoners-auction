@@ -6,8 +6,8 @@ import * as anchor from "@coral-xyz/anchor";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import fs from "fs";
 import path from "path";
-import { CommonersAuction } from "../../target/types/commoners_auction";
-import idl from "../../target/idl/commoners_auction.json";
+import { CommonersAuction } from "../types";
+import idl from "../idl.json";
 
 // ---------------------------------------------------------------------------
 // Config — override with env vars in production
