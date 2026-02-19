@@ -181,22 +181,34 @@ async function main() {
     // Expected: account doesn't exist yet, proceed.
   }
 
-  const tx = await (program.methods
-    .createAuction(new BN(auctionId.toString()))
-    .accounts({
-      admin,
-      config: configAddress,
-      nftMint,
-      slot: slotAddress,
-      auction: auctionAddress,
-      systemProgram: SystemProgram.programId,
-    } as any)
-    .signers([adminKeypair])
-    .rpc());
+  try {
+    const tx = await (program.methods
+      .createAuction(new BN(auctionId.toString()))
+      .accounts({
+        admin,
+        config: configAddress,
+        nftMint,
+        slot: slotAddress,
+        auction: auctionAddress,
+        systemProgram: SystemProgram.programId,
+      } as any)
+      .signers([adminKeypair])
+      .rpc());
 
-  console.log(`  Auction PDA : ${auctionAddress.toBase58()}`);
-  console.log(`  Auction ID  : ${auctionId}`);
-  console.log(`  Tx          : ${tx}`);
+    console.log(`  Auction PDA : ${auctionAddress.toBase58()}`);
+    console.log(`  Auction ID  : ${auctionId}`);
+    console.log(`  Tx          : ${tx}`);
+  } catch (err: any) {
+    // Slot not yet listed — warn but don't fail the whole workflow.
+    if (err?.error?.errorCode?.code === "AccountNotInitialized") {
+      console.log(
+        `  Slot not initialized — NFT not listed yet. Skipping create.`
+      );
+    } else {
+      throw err;
+    }
+  }
+
   console.log("\nDone.");
 }
 
