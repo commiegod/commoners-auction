@@ -35,3 +35,6 @@ jobs:
           SCHEDULE_PATH: ${{ github.workspace }}/web/data/auction-schedule.json
           SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
         run: npx tsx crank/src/daily.ts
+
+      - name: Print completion
+        run: echo "Crank complete."
