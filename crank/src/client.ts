@@ -17,7 +17,7 @@ export const PROGRAM_ID = new PublicKey(
 );
 
 const RPC_URL =
-  process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
+  process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
 
 const KEYPAIR_PATH =
   process.env.ADMIN_KEYPAIR_PATH ??
