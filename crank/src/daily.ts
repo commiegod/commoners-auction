@@ -160,45 +160,55 @@ async function main() {
 
   // ── 2. Create today's auction ─────────────────────────────────────────────
   //
-  // Primary source: auction-schedule.json (JSON entry for today).
-  // Fallback:       query on-chain SlotRegistration accounts for today's date.
-  //                 This lets the crank run perpetually even after the JSON
-  //                 schedule runs out, as long as holders have registered slots.
+  // Source of truth: on-chain SlotRegistration accounts for today's midnight.
+  // The JSON schedule is used as metadata enrichment only (name label in logs).
+  // This allows the crank to run correctly even when the JSON schedule has a
+  // wrong nftId for today, or no entry at all.
 
   const scheduledDate = midnightUTC(todayStr);
   const auctionId = scheduledDate;
+  const todayTs = Number(scheduledDate);
 
   let nftMint: PublicKey | null = null;
   let createLabel = todayStr;
 
-  const todayEntry = schedule[todayStr];
-  if (todayEntry) {
-    nftMint = new PublicKey(todayEntry.nftId);
-    createLabel = `${todayEntry.name} (${todayStr})`;
-  } else {
-    // Fallback: scan on-chain SlotRegistration accounts for today's midnight ts
-    console.log(`\n[create] No JSON entry for ${todayStr} — scanning on-chain slots…`);
-    const SLOT_SIZE = 91;
-    const slotAccounts = await (program.provider as any).connection.getProgramAccounts(
-      program.programId,
-      { filters: [{ dataSize: SLOT_SIZE }] }
-    );
-    const todayTs = Number(scheduledDate);
-    for (const { pubkey: _pk, account } of slotAccounts) {
-      try {
-        const decoded = program.coder.accounts.decode("SlotRegistration", account.data);
-        const ts = decoded.scheduledDate.toNumber();
-        if (ts === todayTs && decoded.escrowed && !decoded.consumed) {
-          nftMint = decoded.nftMint as PublicKey;
-          createLabel = `on-chain slot ${nftMint.toBase58().slice(0, 8)}… (${todayStr})`;
-          break;
-        }
-      } catch {}
+  // Scan on-chain SlotRegistration accounts for today's date (primary)
+  console.log(`\n[create] Scanning on-chain slots for ${todayStr}…`);
+  const SLOT_SIZE = 91;
+  const slotAccounts = await (program.provider as any).connection.getProgramAccounts(
+    program.programId,
+    { filters: [{ dataSize: SLOT_SIZE }] }
+  );
+  for (const { account } of slotAccounts) {
+    try {
+      const decoded = program.coder.accounts.decode("SlotRegistration", account.data);
+      const ts = decoded.scheduledDate.toNumber();
+      if (ts === todayTs && decoded.escrowed && !decoded.consumed) {
+        nftMint = decoded.nftMint as PublicKey;
+        // Enrich label from JSON schedule if available
+        const jsonEntry = Object.values(schedule).find(
+          (e) => e.nftId === nftMint!.toBase58()
+        );
+        createLabel = jsonEntry
+          ? `${jsonEntry.name} (${todayStr})`
+          : `${nftMint.toBase58().slice(0, 8)}… (${todayStr})`;
+        break;
+      }
+    } catch {}
+  }
+
+  // Fall back to JSON schedule if no on-chain slot found
+  if (!nftMint) {
+    const todayEntry = schedule[todayStr];
+    if (todayEntry) {
+      console.log(`  No on-chain slot found — trying JSON fallback…`);
+      nftMint = new PublicKey(todayEntry.nftId);
+      createLabel = `${todayEntry.name} (${todayStr}) [JSON fallback]`;
     }
   }
 
   if (!nftMint) {
-    console.log(`\n[create] No slot registered for ${todayStr} — nothing to create.`);
+    console.log(`  No slot registered for ${todayStr} — nothing to create.`);
     console.log("\nDone.");
     return;
   }
