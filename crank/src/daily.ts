@@ -86,16 +86,42 @@ async function main() {
     const scheduledDate = midnightUTC(yesterdayStr);
     const auctionId = scheduledDate;
     const [slotAddress] = slotPDA(nftMint, scheduledDate);
-    const [auctionAddress] = auctionPDA(auctionId);
-    const [bidVaultAddress] = bidVaultPDA(auctionId);
+    let [auctionAddress] = auctionPDA(auctionId);
+    let [bidVaultAddress] = bidVaultPDA(auctionId);
 
     let auction: Awaited<
       ReturnType<typeof program.account.auctionState.fetch>
     > | null = null;
+    // Primary: deterministic PDA keyed by scheduled midnight timestamp
     try {
       auction = await program.account.auctionState.fetch(auctionAddress);
     } catch {
-      console.log("  No auction account found — skipping.");
+      // Fallback: scan all AuctionState accounts for this mint.
+      // Handles auctions created with non-deterministic IDs (e.g. create-auction.ts).
+      const AUCTION_STATE_SIZE = 150;
+      const rawAccounts = await (program.provider as any).connection.getProgramAccounts(
+        program.programId,
+        {
+          filters: [
+            { dataSize: AUCTION_STATE_SIZE },
+            { memcmp: { offset: 8, bytes: nftMint.toBase58() } },
+          ],
+        }
+      );
+      for (const { pubkey, account } of rawAccounts) {
+        try {
+          const decoded = program.coder.accounts.decode("AuctionState", account.data);
+          if (!decoded.settled) {
+            auction = decoded;
+            auctionAddress = pubkey;
+            [bidVaultAddress] = bidVaultPDA(BigInt(decoded.auction_id.toString()));
+            break;
+          }
+        } catch {}
+      }
+      if (!auction) {
+        console.log("  No auction account found — skipping.");
+      }
     }
 
     if (auction) {
