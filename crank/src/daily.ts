@@ -23,6 +23,8 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import BN from "bn.js";
+import * as anchor from "@coral-xyz/anchor";
+import idlJson from "../idl.json";
 import {
   buildClient,
   configPDA,
@@ -108,9 +110,10 @@ async function main() {
           ],
         }
       );
+      const auctionCoder = new anchor.BorshAccountsCoder(idlJson as anchor.Idl);
       for (const { pubkey, account } of rawAccounts) {
         try {
-          const decoded = program.coder.accounts.decode("AuctionState", account.data);
+          const decoded = auctionCoder.decode("AuctionState", account.data);
           if (!decoded.settled) {
             auction = decoded;
             auctionAddress = pubkey;
@@ -132,7 +135,7 @@ async function main() {
       } else {
         const config =
           await program.account.programConfig.fetch(configAddress);
-        const winner = (auction.currentBidder as PublicKey | null) ?? admin;
+        const winner = (auction.current_bidder as PublicKey | null) ?? admin;
         const seller = auction.seller as PublicKey;
 
         const escrowTokenAccount = await getAssociatedTokenAddress(
@@ -172,7 +175,7 @@ async function main() {
           .rpc());
 
         const bidSol =
-          (auction.currentBid as BN).toNumber() / LAMPORTS_PER_SOL;
+          (auction.current_bid as BN).toNumber() / LAMPORTS_PER_SOL;
         console.log(
           `  Winner  : ${winner.toBase58()}`
         );
@@ -205,12 +208,13 @@ async function main() {
     program.programId,
     { filters: [{ dataSize: SLOT_SIZE }] }
   );
+  const slotCoder = new anchor.BorshAccountsCoder(idlJson as anchor.Idl);
   for (const { account } of slotAccounts) {
     try {
-      const decoded = program.coder.accounts.decode("SlotRegistration", account.data);
-      const ts = decoded.scheduledDate.toNumber();
+      const decoded = slotCoder.decode("SlotRegistration", account.data);
+      const ts = decoded.scheduled_date.toNumber();
       if (ts === todayTs && decoded.escrowed && !decoded.consumed) {
-        nftMint = decoded.nftMint as PublicKey;
+        nftMint = decoded.nft_mint as PublicKey;
         // Enrich label from JSON schedule if available
         const jsonEntry = Object.values(schedule).find(
           (e) => e.nftId === nftMint!.toBase58()
