@@ -1,7 +1,7 @@
 /**
  * Daily crank — runs once per day at 00:05 UTC via GitHub Actions.
  *
- * 1. Settles yesterday's auction (if it ended and wasn't settled yet).
+ * 1. Settles ALL ended, unsettled auctions (not just yesterday's).
  * 2. Creates today's auction (if the slot is registered and ready).
  *
  * Convention:
@@ -13,6 +13,7 @@
  *   ADMIN_KEYPAIR_JSON  JSON array of keypair bytes (for CI)
  *   ADMIN_KEYPAIR_PATH  Path to keypair file (local fallback)
  *   SOLANA_RPC_URL      RPC endpoint (default: devnet)
+ *   CRANK_DATE          Override "today" for testing (YYYY-MM-DD)
  */
 import fs from "fs";
 import path from "path";
@@ -72,127 +73,107 @@ async function main() {
     ? new Date(process.env.CRANK_DATE + "T00:00:00Z")
     : new Date();
   const todayStr = isoDate(now);
-  const yesterdayStr = isoDate(new Date(now.getTime() - 86_400_000));
+  const nowTs = Math.floor(Date.now() / 1000);
 
   const [configAddress] = configPDA();
+  const coder = new anchor.BorshAccountsCoder(idlJson as anchor.Idl);
+
+  // Build a mint → name map from the JSON schedule for log labels
+  const mintToName: Record<string, string> = {};
+  for (const entry of Object.values(schedule)) {
+    mintToName[entry.nftId] = entry.name;
+  }
 
   console.log("=".repeat(60));
   console.log(`  Daily Crank — ${todayStr}`);
   console.log("=".repeat(60));
 
-  // ── 1. Settle yesterday ───────────────────────────────────────────────────
-  const yesterdayEntry = schedule[yesterdayStr];
-  if (yesterdayEntry) {
-    console.log(`\n[settle] ${yesterdayEntry.name} (${yesterdayStr})`);
-    const nftMint = new PublicKey(yesterdayEntry.nftId);
-    const scheduledDate = midnightUTC(yesterdayStr);
-    const auctionId = scheduledDate;
-    const [slotAddress] = slotPDA(nftMint, scheduledDate);
-    let [auctionAddress] = auctionPDA(auctionId);
-    let [bidVaultAddress] = bidVaultPDA(auctionId);
+  // ── 1. Settle ALL ended, unsettled auctions ───────────────────────────────
+  //
+  // Scans every AuctionState account on-chain. Any that are !settled and
+  // end_time <= now get settled. No dependency on the JSON schedule.
 
-    let auction: Awaited<
-      ReturnType<typeof program.account.auctionState.fetch>
-    > | null = null;
-    // Primary: deterministic PDA keyed by scheduled midnight timestamp
+  console.log("\n[settle] Scanning for ended auctions…");
+
+  const AUCTION_STATE_SIZE = 150;
+  const allAuctions = await (program.provider as any).connection.getProgramAccounts(
+    program.programId,
+    { filters: [{ dataSize: AUCTION_STATE_SIZE }] }
+  );
+
+  let settledCount = 0;
+
+  // Fetch config once (needed for treasury address)
+  const config = await program.account.programConfig.fetch(configAddress);
+
+  for (const { pubkey: auctionAddress, account } of allAuctions) {
+    let decoded: any;
     try {
-      auction = await program.account.auctionState.fetch(auctionAddress);
+      decoded = coder.decode("AuctionState", account.data);
     } catch {
-      // Fallback: scan all AuctionState accounts for this mint.
-      // Handles auctions created with non-deterministic IDs (e.g. create-auction.ts).
-      const AUCTION_STATE_SIZE = 150;
-      const rawAccounts = await (program.provider as any).connection.getProgramAccounts(
-        program.programId,
-        {
-          filters: [
-            { dataSize: AUCTION_STATE_SIZE },
-            { memcmp: { offset: 8, bytes: nftMint.toBase58() } },
-          ],
-        }
-      );
-      const auctionCoder = new anchor.BorshAccountsCoder(idlJson as anchor.Idl);
-      for (const { pubkey, account } of rawAccounts) {
-        try {
-          const decoded = auctionCoder.decode("AuctionState", account.data);
-          if (!decoded.settled) {
-            auction = decoded;
-            auctionAddress = pubkey;
-            [bidVaultAddress] = bidVaultPDA(BigInt(decoded.auction_id.toString()));
-            break;
-          }
-        } catch {}
-      }
-      if (!auction) {
-        console.log("  No auction account found — skipping.");
-      }
+      continue;
     }
 
-    if (auction) {
-      if (auction.settled) {
-        console.log("  Already settled.");
-      } else if (auction.endTime.toNumber() > Math.floor(Date.now() / 1000)) {
-        console.log("  Auction hasn't ended yet — skipping.");
-      } else {
-        const config =
-          await program.account.programConfig.fetch(configAddress);
-        const winner = (auction.current_bidder as PublicKey | null) ?? admin;
-        const seller = auction.seller as PublicKey;
+    if (decoded.settled) continue;
+    if (decoded.end_time.toNumber() > nowTs) continue;
 
-        const escrowTokenAccount = await getAssociatedTokenAddress(
-          nftMint,
-          slotAddress,
-          true
-        );
-        const winnerTokenAccount = await getAssociatedTokenAddress(
-          nftMint,
-          winner
-        );
-        const sellerTokenAccount = await getAssociatedTokenAddress(
-          nftMint,
-          seller
-        );
+    const nftMint = decoded.nft_mint as PublicKey;
+    const auctionId = BigInt(decoded.auction_id.toString());
+    const [slotAddress] = slotPDA(nftMint, auctionId);
+    const [bidVaultAddress] = bidVaultPDA(auctionId);
 
-        const tx = await (program.methods
-          .settleAuction()
-          .accounts({
-            admin,
-            config: configAddress,
-            auction: auctionAddress,
-            slot: slotAddress,
-            nftMint,
-            escrowTokenAccount,
-            winnerTokenAccount,
-            sellerTokenAccount,
-            bidVault: bidVaultAddress,
-            seller,
-            winner,
-            treasury: config.treasury as PublicKey,
-            tokenProgram: TOKEN_PROGRAM_ID,
-            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-            systemProgram: SystemProgram.programId,
-          } as any)
-          .signers([adminKeypair])
-          .rpc());
+    const winner = (decoded.current_bidder as PublicKey | null) ?? admin;
+    const seller = decoded.seller as PublicKey;
 
-        const bidSol =
-          (auction.current_bid as BN).toNumber() / LAMPORTS_PER_SOL;
-        console.log(
-          `  Winner  : ${winner.toBase58()}`
-        );
-        console.log(`  Bid     : ${bidSol} SOL`);
-        console.log(`  Tx      : ${tx}`);
-      }
+    const label = mintToName[nftMint.toBase58()] ?? nftMint.toBase58().slice(0, 8) + "…";
+    const endedAt = new Date(decoded.end_time.toNumber() * 1000).toISOString();
+    console.log(`\n  ${label} (ended ${endedAt})`);
+
+    const escrowTokenAccount = await getAssociatedTokenAddress(nftMint, slotAddress, true);
+    const winnerTokenAccount = await getAssociatedTokenAddress(nftMint, winner);
+    const sellerTokenAccount = await getAssociatedTokenAddress(nftMint, seller);
+
+    try {
+      const tx = await (program.methods
+        .settleAuction()
+        .accounts({
+          admin,
+          config: configAddress,
+          auction: auctionAddress,
+          slot: slotAddress,
+          nftMint,
+          escrowTokenAccount,
+          winnerTokenAccount,
+          sellerTokenAccount,
+          bidVault: bidVaultAddress,
+          seller,
+          winner,
+          treasury: config.treasury as PublicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        } as any)
+        .signers([adminKeypair])
+        .rpc());
+
+      const bidSol = (decoded.current_bid as BN).toNumber() / LAMPORTS_PER_SOL;
+      console.log(`  Winner  : ${winner.toBase58()}`);
+      console.log(`  Bid     : ${bidSol} SOL`);
+      console.log(`  Tx      : ${tx}`);
+      settledCount++;
+    } catch (err: any) {
+      console.error(`  Settle failed: ${err.message}`);
     }
-  } else {
-    console.log(`\n[settle] No entry for ${yesterdayStr} — nothing to settle.`);
+  }
+
+  if (settledCount === 0) {
+    console.log("  Nothing to settle.");
   }
 
   // ── 2. Create today's auction ─────────────────────────────────────────────
   //
   // Source of truth: on-chain SlotRegistration accounts for today's midnight.
   // The JSON schedule is used as metadata enrichment only (name label in logs).
-  // This allows the crank to run correctly even when the JSON schedule has a
-  // wrong nftId for today, or no entry at all.
 
   const scheduledDate = midnightUTC(todayStr);
   const auctionId = scheduledDate;
@@ -201,21 +182,19 @@ async function main() {
   let nftMint: PublicKey | null = null;
   let createLabel = todayStr;
 
-  // Scan on-chain SlotRegistration accounts for today's date (primary)
   console.log(`\n[create] Scanning on-chain slots for ${todayStr}…`);
   const SLOT_SIZE = 91;
   const slotAccounts = await (program.provider as any).connection.getProgramAccounts(
     program.programId,
     { filters: [{ dataSize: SLOT_SIZE }] }
   );
-  const slotCoder = new anchor.BorshAccountsCoder(idlJson as anchor.Idl);
+
   for (const { account } of slotAccounts) {
     try {
-      const decoded = slotCoder.decode("SlotRegistration", account.data);
+      const decoded = coder.decode("SlotRegistration", account.data);
       const ts = decoded.scheduled_date.toNumber();
       if (ts === todayTs && decoded.escrowed && !decoded.consumed) {
         nftMint = decoded.nft_mint as PublicKey;
-        // Enrich label from JSON schedule if available
         const jsonEntry = Object.values(schedule).find(
           (e) => e.nftId === nftMint!.toBase58()
         );
@@ -251,6 +230,7 @@ async function main() {
   try {
     const existing = await program.account.auctionState.fetch(auctionAddress);
     console.log(`  Already exists (settled=${existing.settled}) — skipping.`);
+    console.log("\nDone.");
     return;
   } catch {
     // Expected: account doesn't exist yet, proceed.
@@ -274,7 +254,6 @@ async function main() {
     console.log(`  Auction ID  : ${auctionId}`);
     console.log(`  Tx          : ${tx}`);
   } catch (err: any) {
-    // Slot not yet listed — warn but don't fail the whole workflow.
     if (err?.error?.errorCode?.code === "AccountNotInitialized") {
       console.log(
         `  Slot not initialized — NFT not listed yet. Skipping create.`
