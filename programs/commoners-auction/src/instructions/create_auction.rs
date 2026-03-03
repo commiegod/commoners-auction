@@ -4,10 +4,12 @@ use crate::errors::AuctionError;
 
 /// Called by the backend crank at the start of each auction day.
 /// Opens bidding for the NFT registered in the given slot.
-/// Duration is always 86,400 seconds (24 hours).
+/// `end_time` is an explicit Unix timestamp — pass the next midnight UTC
+/// so the auction ends deterministically regardless of crank run time.
 pub fn create_auction(
     ctx: Context<CreateAuction>,
     auction_id: u64,
+    end_time: i64,
 ) -> Result<()> {
     let config = &ctx.accounts.config;
     let slot = &mut ctx.accounts.slot;
@@ -25,7 +27,10 @@ pub fn create_auction(
     let nft_mint_key = ctx.accounts.nft_mint.key();
 
     let now = Clock::get()?.unix_timestamp;
-    let end_time = now.checked_add(86_400).ok_or(AuctionError::Overflow)?;
+
+    // end_time must be in the future and no more than 48 hours away.
+    require!(end_time > now, AuctionError::InvalidEndTime);
+    require!(end_time <= now.checked_add(172_800).ok_or(AuctionError::Overflow)?, AuctionError::InvalidEndTime);
 
     // Resolve the seller's fee based on their COMMON token balance.
     // common_balance is 0 until the COMMON token launches.

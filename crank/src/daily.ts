@@ -179,6 +179,11 @@ async function main() {
   const auctionId = scheduledDate;
   const todayTs = Number(scheduledDate);
 
+  // Auction always ends at next midnight UTC — deterministic regardless of
+  // when this crank actually runs (GitHub Actions can delay up to ~3 hours).
+  const tomorrowStr = isoDate(new Date(now.getTime() + 86_400_000));
+  const endTime = Number(midnightUTC(tomorrowStr));
+
   let nftMint: PublicKey | null = null;
   let createLabel = todayStr;
 
@@ -238,7 +243,7 @@ async function main() {
 
   try {
     const tx = await (program.methods
-      .createAuction(new BN(auctionId.toString()))
+      .createAuction(new BN(auctionId.toString()), new BN(endTime))
       .accounts({
         admin,
         config: configAddress,
@@ -252,6 +257,7 @@ async function main() {
 
     console.log(`  Auction PDA : ${auctionAddress.toBase58()}`);
     console.log(`  Auction ID  : ${auctionId}`);
+    console.log(`  End time    : ${new Date(endTime * 1000).toISOString()} (${tomorrowStr} 00:00 UTC)`);
     console.log(`  Tx          : ${tx}`);
   } catch (err: any) {
     if (err?.error?.errorCode?.code === "AccountNotInitialized") {

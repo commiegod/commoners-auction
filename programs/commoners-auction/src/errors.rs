@@ -43,4 +43,29 @@ pub enum AuctionError {
 
     #[msg("Seller does not match the registered slot owner")]
     SellerMismatch,
+
+    #[msg("end_time must be in the future and no more than 48 hours away")]
+    InvalidEndTime,
+
+    // ── Governance ───────────────────────────────────────────────────────────
+    #[msg("Proposal is not active")]
+    ProposalNotActive,
+
+    #[msg("Voting period has ended")]
+    VotingEnded,
+
+    #[msg("Vote allocation exceeds voter's weight")]
+    AllocationExceedsWeight,
+
+    #[msg("No votes allocated")]
+    NoVotesAllocated,
+
+    #[msg("Title exceeds maximum length")]
+    TitleTooLong,
+
+    #[msg("Description exceeds maximum length")]
+    DescriptionTooLong,
+
+    #[msg("Proposal type exceeds maximum length")]
+    TypeTooLong,
 }

@@ -49,11 +49,15 @@ pub mod commoners_auction {
 
     /// Called by the backend crank at the start of each auction day
     /// to open bidding for the scheduled NFT.
+    /// `end_time` is the explicit Unix timestamp for auction close —
+    /// pass the next midnight UTC so the auction ends deterministically
+    /// regardless of when the crank actually runs.
     pub fn create_auction(
         ctx: Context<CreateAuction>,
         auction_id: u64,
+        end_time: i64,
     ) -> Result<()> {
-        instructions::create_auction::create_auction(ctx, auction_id)
+        instructions::create_auction::create_auction(ctx, auction_id, end_time)
     }
 
     /// Called by any wallet to place a bid.
@@ -90,5 +94,54 @@ pub mod commoners_auction {
             new_common_token_mint,
             new_discount_tiers,
         )
+    }
+
+    // ── Governance ───────────────────────────────────────────────────────────
+
+    /// Admin creates an on-chain governance proposal after off-chain review.
+    /// Opens the voting window immediately for `duration_secs`.
+    pub fn create_proposal(
+        ctx: Context<CreateProposal>,
+        proposal_id: u64,
+        proposer: Pubkey,
+        title: String,
+        description: String,
+        proposal_type: String,
+        treasury_sol: u64,
+        duration_secs: i64,
+    ) -> Result<()> {
+        instructions::create_proposal::create_proposal(
+            ctx,
+            proposal_id,
+            proposer,
+            title,
+            description,
+            proposal_type,
+            treasury_sol,
+            duration_secs,
+        )
+    }
+
+    /// Commoner NFT holder casts a split vote on an active proposal.
+    /// Requires voter + admin co-signature (admin verified NFT holdings off-chain).
+    pub fn cast_vote(
+        ctx: Context<CastVote>,
+        proposal_id: u64,
+        weight: u64,
+        yes: u64,
+        no: u64,
+        abstain: u64,
+    ) -> Result<()> {
+        instructions::cast_vote::cast_vote(ctx, proposal_id, weight, yes, no, abstain)
+    }
+
+    /// Admin finalizes a proposal after the voting window closes.
+    /// Status: 1 = passed, 2 = failed, 3 = queued (awaiting treasury execution).
+    pub fn finalize_proposal(
+        ctx: Context<FinalizeProposal>,
+        proposal_id: u64,
+        status: u8,
+    ) -> Result<()> {
+        instructions::finalize_proposal::finalize_proposal(ctx, proposal_id, status)
     }
 }
