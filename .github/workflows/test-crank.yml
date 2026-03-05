@@ -1,0 +1,45 @@
+name: Test Crank (dry run)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout commoners-auction
+        uses: actions/checkout@v4
+
+      - name: Checkout commoners-web (for auction schedule)
+        uses: actions/checkout@v4
+        with:
+          repository: commiegod/commoners-web
+          path: web
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Dry-run crank (validates IDL + instruction builders, no tx sent)
+        env:
+          ADMIN_KEYPAIR_JSON: ${{ secrets.ADMIN_KEYPAIR_JSON }}
+          SCHEDULE_PATH: ${{ github.workspace }}/web/data/auction-schedule.json
+          SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
+          DRY_RUN: "true"
+        # Use tomorrow so the create path always exercises createAuction even
+        # when today's auction already exists on-chain (idempotency check skipped
+        # in dry-run, but using tomorrow ensures the slot scan attempts a build).
+        run: |
+          TOMORROW=$(date -u -d "+1 day" +%Y-%m-%d 2>/dev/null || date -u -v+1d +%Y-%m-%d)
+          echo "Dry-running crank for date: $TOMORROW"
+          CRANK_DATE=$TOMORROW npx tsx crank/src/daily.ts

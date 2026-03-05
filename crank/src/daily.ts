@@ -56,9 +56,26 @@ type Schedule = Record<string, ScheduleEntry>;
 
 // ── main ─────────────────────────────────────────────────────────────────────
 
+/**
+ * DRY_RUN=true  — build every instruction (validates IDL arg count/types)
+ *                  but never send a transaction. Safe to run any time.
+ */
+const DRY_RUN = process.env.DRY_RUN === "true";
+
+/** Execute or dry-run a prepared MethodsBuilder. Returns sig or null. */
+async function send(builder: any): Promise<string | null> {
+  if (DRY_RUN) {
+    await builder.instruction(); // throws immediately if IDL args are wrong
+    return null;
+  }
+  return builder.rpc();
+}
+
 async function main() {
   const { program, adminKeypair } = buildClient();
   const admin = adminKeypair.publicKey;
+
+  if (DRY_RUN) console.log("  *** DRY RUN — no transactions will be sent ***\n");
 
   const schedulePath =
     process.env.SCHEDULE_PATH ??
@@ -134,7 +151,7 @@ async function main() {
     const sellerTokenAccount = await getAssociatedTokenAddress(nftMint, seller);
 
     try {
-      const tx = await (program.methods
+      const builder = program.methods
         .settleAuction()
         .accounts({
           admin,
@@ -153,13 +170,14 @@ async function main() {
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         } as any)
-        .signers([adminKeypair])
-        .rpc());
+        .signers([adminKeypair]);
 
+      const tx = await send(builder);
       const bidSol = (decoded.current_bid as BN).toNumber() / LAMPORTS_PER_SOL;
       console.log(`  Winner  : ${winner.toBase58()}`);
       console.log(`  Bid     : ${bidSol} SOL`);
-      console.log(`  Tx      : ${tx}`);
+      if (tx) console.log(`  Tx      : ${tx}`);
+      else    console.log(`  [DRY RUN] settle instruction ok`);
       settledCount++;
     } catch (err: any) {
       console.error(`  Settle failed: ${err.message}`);
@@ -231,18 +249,21 @@ async function main() {
   const [slotAddress] = slotPDA(nftMint, scheduledDate);
   const [auctionAddress] = auctionPDA(auctionId);
 
-  // Idempotent — skip if already created
-  try {
-    const existing = await program.account.auctionState.fetch(auctionAddress);
-    console.log(`  Already exists (settled=${existing.settled}) — skipping.`);
-    console.log("\nDone.");
-    return;
-  } catch {
-    // Expected: account doesn't exist yet, proceed.
+  // Idempotent — skip if already created (skip check in dry-run so we always
+  // exercise the instruction builder, which is what validates IDL arg count)
+  if (!DRY_RUN) {
+    try {
+      const existing = await program.account.auctionState.fetch(auctionAddress);
+      console.log(`  Already exists (settled=${existing.settled}) — skipping.`);
+      console.log("\nDone.");
+      return;
+    } catch {
+      // Expected: account doesn't exist yet, proceed.
+    }
   }
 
   try {
-    const tx = await (program.methods
+    const builder = program.methods
       .createAuction(new BN(auctionId.toString()), new BN(endTime))
       .accounts({
         admin,
@@ -252,13 +273,14 @@ async function main() {
         auction: auctionAddress,
         systemProgram: SystemProgram.programId,
       } as any)
-      .signers([adminKeypair])
-      .rpc());
+      .signers([adminKeypair]);
 
+    const tx = await send(builder);
     console.log(`  Auction PDA : ${auctionAddress.toBase58()}`);
     console.log(`  Auction ID  : ${auctionId}`);
     console.log(`  End time    : ${new Date(endTime * 1000).toISOString()} (${tomorrowStr} 00:00 UTC)`);
-    console.log(`  Tx          : ${tx}`);
+    if (tx) console.log(`  Tx          : ${tx}`);
+    else    console.log(`  [DRY RUN] createAuction instruction ok`);
   } catch (err: any) {
     if (err?.error?.errorCode?.code === "AccountNotInitialized") {
       console.log(
