@@ -8,10 +8,157 @@
   },
   "instructions": [
     {
+      "name": "cast_vote",
+      "docs": [
+        "Commoner NFT holder casts a split vote on an active proposal.",
+        "Requires voter + admin co-signature (admin verified NFT holdings off-chain)."
+      ],
+      "discriminator": [
+        20,
+        212,
+        15,
+        189,
+        69,
+        180,
+        69,
+        151
+      ],
+      "accounts": [
+        {
+          "name": "voter",
+          "docs": [
+            "The Commoner NFT holder casting the vote. Signs and pays rent."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "admin",
+          "docs": [
+            "Admin co-signature proves this voter's NFT holdings were verified",
+            "off-chain via Helius DAS before the transaction was constructed."
+          ],
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  103,
+                  114,
+                  97,
+                  109,
+                  45,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "proposal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  112,
+                  111,
+                  115,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "proposal_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vote_record",
+          "docs": [
+            "VoteRecord PDA — `init` will fail if voter already voted for this",
+            "proposal, preventing double-voting without any explicit check."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "proposal_id"
+              },
+              {
+                "kind": "account",
+                "path": "voter"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "proposal_id",
+          "type": "u64"
+        },
+        {
+          "name": "weight",
+          "type": "u64"
+        },
+        {
+          "name": "yes",
+          "type": "u64"
+        },
+        {
+          "name": "no",
+          "type": "u64"
+        },
+        {
+          "name": "abstain",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "create_auction",
       "docs": [
         "Called by the backend crank at the start of each auction day",
-        "to open bidding for the scheduled NFT."
+        "to open bidding for the scheduled NFT.",
+        "`end_time` is the explicit Unix timestamp for auction close —",
+        "pass the next midnight UTC so the auction ends deterministically",
+        "regardless of when the crank actually runs."
       ],
       "discriminator": [
         234,
@@ -123,6 +270,209 @@
         {
           "name": "auction_id",
           "type": "u64"
+        },
+        {
+          "name": "end_time",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "create_proposal",
+      "docs": [
+        "Admin creates an on-chain governance proposal after off-chain review.",
+        "Opens the voting window immediately for `duration_secs`."
+      ],
+      "discriminator": [
+        132,
+        116,
+        68,
+        174,
+        216,
+        160,
+        198,
+        22
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  103,
+                  114,
+                  97,
+                  109,
+                  45,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "proposal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  112,
+                  111,
+                  115,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "proposal_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "proposal_id",
+          "type": "u64"
+        },
+        {
+          "name": "proposer",
+          "type": "pubkey"
+        },
+        {
+          "name": "title",
+          "type": "string"
+        },
+        {
+          "name": "description",
+          "type": "string"
+        },
+        {
+          "name": "proposal_type",
+          "type": "string"
+        },
+        {
+          "name": "treasury_sol",
+          "type": "u64"
+        },
+        {
+          "name": "duration_secs",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "finalize_proposal",
+      "docs": [
+        "Admin finalizes a proposal after the voting window closes.",
+        "Status: 1 = passed, 2 = failed, 3 = queued (awaiting treasury execution)."
+      ],
+      "discriminator": [
+        23,
+        68,
+        51,
+        167,
+        109,
+        173,
+        187,
+        164
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  103,
+                  114,
+                  97,
+                  109,
+                  45,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "proposal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  112,
+                  111,
+                  115,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "proposal_id"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "proposal_id",
+          "type": "u64"
+        },
+        {
+          "name": "status",
+          "type": "u8"
         }
       ]
     },
@@ -1167,6 +1517,19 @@
       ]
     },
     {
+      "name": "GovernanceProposal",
+      "discriminator": [
+        53,
+        107,
+        240,
+        190,
+        43,
+        73,
+        65,
+        143
+      ]
+    },
+    {
       "name": "ProgramConfig",
       "discriminator": [
         196,
@@ -1190,6 +1553,19 @@
         13,
         64,
         243
+      ]
+    },
+    {
+      "name": "VoteRecord",
+      "discriminator": [
+        112,
+        9,
+        123,
+        165,
+        234,
+        9,
+        157,
+        167
       ]
     }
   ],
@@ -1263,6 +1639,46 @@
       "code": 6013,
       "name": "SellerMismatch",
       "msg": "Seller does not match the registered slot owner"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidEndTime",
+      "msg": "end_time must be in the future and no more than 48 hours away"
+    },
+    {
+      "code": 6015,
+      "name": "ProposalNotActive",
+      "msg": "Proposal is not active"
+    },
+    {
+      "code": 6016,
+      "name": "VotingEnded",
+      "msg": "Voting period has ended"
+    },
+    {
+      "code": 6017,
+      "name": "AllocationExceedsWeight",
+      "msg": "Vote allocation exceeds voter's weight"
+    },
+    {
+      "code": 6018,
+      "name": "NoVotesAllocated",
+      "msg": "No votes allocated"
+    },
+    {
+      "code": 6019,
+      "name": "TitleTooLong",
+      "msg": "Title exceeds maximum length"
+    },
+    {
+      "code": 6020,
+      "name": "DescriptionTooLong",
+      "msg": "Description exceeds maximum length"
+    },
+    {
+      "code": 6021,
+      "name": "TypeTooLong",
+      "msg": "Proposal type exceeds maximum length"
     }
   ],
   "types": [
@@ -1381,6 +1797,113 @@
               "Fee in basis points for this tier."
             ],
             "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GovernanceProposal",
+      "docs": [
+        "On-chain governance proposal. Created by admin after off-chain review.",
+        "PDA seeds: [\"proposal\", proposal_id.to_le_bytes()]"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "docs": [
+              "Numeric ID, milliseconds since epoch at creation time."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "proposer",
+            "docs": [
+              "Original submitter (Commoner NFT holder who proposed it)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "admin",
+            "docs": [
+              "Admin who created this on-chain record after off-chain approval."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "title",
+            "docs": [
+              "Short title (max 100 chars)."
+            ],
+            "type": "string"
+          },
+          {
+            "name": "description",
+            "docs": [
+              "Full description (max 800 chars)."
+            ],
+            "type": "string"
+          },
+          {
+            "name": "proposal_type",
+            "docs": [
+              "Proposal type slug, e.g. \"community-initiative\" (max 50 chars)."
+            ],
+            "type": "string"
+          },
+          {
+            "name": "treasury_sol",
+            "docs": [
+              "SOL amount requested from treasury (0 for non-treasury proposals)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "created_at",
+            "docs": [
+              "Unix timestamp when this record was created on-chain."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "ends_at",
+            "docs": [
+              "Unix timestamp when voting closes."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "yes",
+            "docs": [
+              "Accumulated yes votes (NFT-weighted)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "no",
+            "docs": [
+              "Accumulated no votes."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "abstain",
+            "docs": [
+              "Accumulated abstain votes."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "0 = active, 1 = passed, 2 = failed, 3 = queued"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }
@@ -1523,6 +2046,64 @@
               "Whether this slot has been consumed (auction created)."
             ],
             "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoteRecord",
+      "docs": [
+        "Per-voter vote record. Existence of this PDA prevents double-voting.",
+        "PDA seeds: [\"vote\", proposal_id.to_le_bytes(), voter_pubkey.as_ref()]"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "proposal_id",
+            "docs": [
+              "The proposal this vote was cast for."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "voter",
+            "docs": [
+              "The wallet that cast the vote."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "weight",
+            "docs": [
+              "Total voting weight (number of Commoner NFTs held, verified off-chain)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "yes",
+            "docs": [
+              "Votes allocated to yes."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "no",
+            "docs": [
+              "Votes allocated to no."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "abstain",
+            "docs": [
+              "Votes allocated to abstain."
+            ],
+            "type": "u64"
           },
           {
             "name": "bump",
