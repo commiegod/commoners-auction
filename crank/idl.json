@@ -169,38 +169,12 @@
       ],
       "accounts": [
         {
-          "name": "admin",
+          "name": "payer",
+          "docs": [
+            "Anyone can trigger stale cleanup. Pays tx fee + ATA rent if needed."
+          ],
           "writable": true,
-          "signer": true,
-          "relations": [
-            "config"
-          ]
-        },
-        {
-          "name": "config",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  103,
-                  114,
-                  97,
-                  109,
-                  45,
-                  99,
-                  111,
-                  110,
-                  102,
-                  105,
-                  103
-                ]
-              }
-            ]
-          }
+          "signer": true
         },
         {
           "name": "auction",
@@ -1396,7 +1370,7 @@
     {
       "name": "settle_auction",
       "docs": [
-        "Called by the backend crank after auction end_time.",
+        "Permissionless — callable by anyone after auction end_time.",
         "Sends NFT to winner + SOL to seller if reserve met,",
         "or returns NFT to seller if reserve not met."
       ],
@@ -1412,15 +1386,12 @@
       ],
       "accounts": [
         {
-          "name": "admin",
+          "name": "payer",
           "docs": [
-            "Backend crank — must be admin."
+            "Anyone can trigger settlement. Pays tx fee + ATA rent if needed."
           ],
           "writable": true,
-          "signer": true,
-          "relations": [
-            "config"
-          ]
+          "signer": true
         },
         {
           "name": "config",

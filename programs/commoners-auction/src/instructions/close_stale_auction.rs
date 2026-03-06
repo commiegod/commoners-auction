@@ -3,16 +3,16 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token::{self, Mint, Token, TokenAccount, Transfer},
 };
-use crate::state::{ProgramConfig, AuctionState, SlotRegistration};
+use crate::state::{AuctionState, SlotRegistration};
 use crate::errors::AuctionError;
 
 /// Minimum seconds after auction.end_time before admin can close as stale.
 const STALE_THRESHOLD_SECS: i64 = 3 * 24 * 60 * 60; // 3 days
 
-/// Called by admin to close an unsettled auction that ended 3+ days ago.
-/// Returns the escrowed NFT to the original seller.
-/// This handles edge cases where settle_auction cannot run (e.g. missing
-/// SlotRegistration for pre-slot-system auctions, or crank failures).
+/// Permissionless stale auction cleanup — callable by anyone.
+/// Returns the escrowed NFT to the original seller for auctions that ended
+/// 3+ days ago without being settled. The seller is most incentivized to
+/// call this, but any wallet can trigger it.
 pub fn close_stale_auction(ctx: Context<CloseStaleAuction>) -> Result<()> {
     let auction = &mut ctx.accounts.auction;
     let now = Clock::get()?.unix_timestamp;
@@ -59,15 +59,9 @@ pub fn close_stale_auction(ctx: Context<CloseStaleAuction>) -> Result<()> {
 
 #[derive(Accounts)]
 pub struct CloseStaleAuction<'info> {
+    /// Anyone can trigger stale cleanup. Pays tx fee + ATA rent if needed.
     #[account(mut)]
-    pub admin: Signer<'info>,
-
-    #[account(
-        seeds = [ProgramConfig::SEED],
-        bump = config.bump,
-        has_one = admin @ AuctionError::Unauthorized,
-    )]
-    pub config: Account<'info, ProgramConfig>,
+    pub payer: Signer<'info>,
 
     #[account(
         mut,
@@ -98,7 +92,7 @@ pub struct CloseStaleAuction<'info> {
     /// Seller's token account — receives the NFT back.
     #[account(
         init_if_needed,
-        payer = admin,
+        payer = payer,
         associated_token::mint = nft_mint,
         associated_token::authority = seller,
     )]

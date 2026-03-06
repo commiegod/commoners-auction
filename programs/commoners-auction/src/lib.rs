@@ -69,7 +69,7 @@ pub mod commoners_auction {
         instructions::place_bid::place_bid(ctx, bid_amount)
     }
 
-    /// Called by the backend crank after auction end_time.
+    /// Permissionless — callable by anyone after auction end_time.
     /// Sends NFT to winner + SOL to seller if reserve met,
     /// or returns NFT to seller if reserve not met.
     pub fn settle_auction(ctx: Context<SettleAuction>) -> Result<()> {

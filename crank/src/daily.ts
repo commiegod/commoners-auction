@@ -154,7 +154,7 @@ async function main() {
       const builder = program.methods
         .settleAuction()
         .accounts({
-          admin,
+          payer: admin,
           config: configAddress,
           auction: auctionAddress,
           slot: slotAddress,

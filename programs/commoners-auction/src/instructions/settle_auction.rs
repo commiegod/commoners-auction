@@ -7,7 +7,10 @@ use anchor_spl::{
 use crate::state::{ProgramConfig, AuctionState, SlotRegistration};
 use crate::errors::AuctionError;
 
-/// Called by the backend crank after the auction end_time has passed.
+/// Permissionless settlement — callable by anyone after auction.end_time.
+///
+/// The winning bidder is most incentivized to call this (they want their NFT),
+/// but any wallet can trigger it. The payer covers tx fees and any ATA rent.
 ///
 /// Settlement logic:
 /// - If reserve_price was met: NFT → winner, SOL bid → seller (minus fee), fee → treasury
@@ -130,14 +133,13 @@ pub fn settle_auction(ctx: Context<SettleAuction>) -> Result<()> {
 
 #[derive(Accounts)]
 pub struct SettleAuction<'info> {
-    /// Backend crank — must be admin.
+    /// Anyone can trigger settlement. Pays tx fee + ATA rent if needed.
     #[account(mut)]
-    pub admin: Signer<'info>,
+    pub payer: Signer<'info>,
 
     #[account(
         seeds = [ProgramConfig::SEED],
         bump = config.bump,
-        has_one = admin @ AuctionError::Unauthorized,
         has_one = treasury,
     )]
     pub config: Account<'info, ProgramConfig>,
@@ -171,7 +173,7 @@ pub struct SettleAuction<'info> {
     /// Winner's token account — receives NFT if reserve met.
     #[account(
         init_if_needed,
-        payer = admin,
+        payer = payer,
         associated_token::mint = nft_mint,
         associated_token::authority = winner,
     )]
@@ -180,7 +182,7 @@ pub struct SettleAuction<'info> {
     /// Seller's token account — receives NFT back if reserve not met.
     #[account(
         init_if_needed,
-        payer = admin,
+        payer = payer,
         associated_token::mint = nft_mint,
         associated_token::authority = seller,
     )]
