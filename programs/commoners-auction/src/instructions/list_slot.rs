@@ -43,6 +43,11 @@ pub fn list_slot(
             metadata_pda,
             AuctionError::CollectionNotVerified
         );
+        // Verify the account is actually owned by the Metaplex program.
+        require!(
+            *ctx.accounts.nft_metadata.owner == TOKEN_METADATA_PROGRAM_ID,
+            AuctionError::CollectionNotVerified
+        );
         verify_nft_collection(
             &ctx.accounts.nft_metadata.to_account_info(),
             required_collection,
