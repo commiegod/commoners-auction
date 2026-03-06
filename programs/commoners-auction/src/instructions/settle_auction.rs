@@ -71,17 +71,19 @@ pub fn settle_auction(ctx: Context<SettleAuction>) -> Result<()> {
             seller_proceeds,
         )?;
 
-        system_program::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.system_program.to_account_info(),
-                system_program::Transfer {
-                    from: ctx.accounts.bid_vault.to_account_info(),
-                    to: ctx.accounts.treasury.to_account_info(),
-                },
-                signer_seeds,
-            ),
-            fee,
-        )?;
+        if fee > 0 {
+            system_program::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.system_program.to_account_info(),
+                    system_program::Transfer {
+                        from: ctx.accounts.bid_vault.to_account_info(),
+                        to: ctx.accounts.treasury.to_account_info(),
+                    },
+                    signer_seeds,
+                ),
+                fee,
+            )?;
+        }
 
         auction.reserve_met = true;
 
@@ -151,9 +153,11 @@ pub struct SettleAuction<'info> {
     #[account(
         seeds = [SlotRegistration::SEED, nft_mint.key().as_ref(), &slot.scheduled_date.to_le_bytes()],
         bump = slot.bump,
+        constraint = slot.owner == auction.seller @ AuctionError::SellerMismatch,
     )]
     pub slot: Account<'info, SlotRegistration>,
 
+    #[account(constraint = nft_mint.key() == auction.nft_mint @ AuctionError::MintMismatch)]
     pub nft_mint: Account<'info, Mint>,
 
     /// Escrow token account holding the NFT (owned by slot PDA).

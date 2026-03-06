@@ -26,6 +26,7 @@ pub mod commoners_auction {
         bid_increment_bps: u16,
         time_buffer_secs: i64,
         min_reserve_lamports: u64,
+        required_collection: Option<Pubkey>,
     ) -> Result<()> {
         instructions::initialize_program::initialize_program(
             ctx,
@@ -34,6 +35,7 @@ pub mod commoners_auction {
             bid_increment_bps,
             time_buffer_secs,
             min_reserve_lamports,
+            required_collection,
         )
     }
 
@@ -143,5 +145,20 @@ pub mod commoners_auction {
         status: u8,
     ) -> Result<()> {
         instructions::finalize_proposal::finalize_proposal(ctx, proposal_id, status)
+    }
+
+    /// Admin closes a stale auction (ended 3+ days ago, still unsettled).
+    /// Returns the escrowed NFT to the original seller.
+    pub fn close_stale_auction(ctx: Context<CloseStaleAuction>) -> Result<()> {
+        instructions::close_stale_auction::close_stale_auction(ctx)
+    }
+
+    /// Admin sets (or clears) the required NFT collection for list_slot.
+    /// Set to the MidEvils collection mint before mainnet launch.
+    pub fn set_required_collection(
+        ctx: Context<SetRequiredCollection>,
+        required_collection: Option<Pubkey>,
+    ) -> Result<()> {
+        instructions::set_required_collection::set_required_collection(ctx, required_collection)
     }
 }

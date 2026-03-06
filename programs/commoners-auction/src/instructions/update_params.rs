@@ -16,14 +16,17 @@ pub fn update_params(
     let config = &mut ctx.accounts.config;
 
     if let Some(fee) = new_fee_bps {
+        require!(fee <= 10_000, AuctionError::FeeTooHigh);
         config.default_fee_bps = fee;
         msg!("Fee updated to {}bps", fee);
     }
     if let Some(inc) = new_bid_increment_bps {
+        require!(inc <= 5_000, AuctionError::InvalidBidIncrement);
         config.bid_increment_bps = inc;
         msg!("Bid increment updated to {}bps", inc);
     }
     if let Some(buf) = new_time_buffer_secs {
+        require!(buf >= 0, AuctionError::InvalidTimeBuffer);
         config.time_buffer_secs = buf;
         msg!("Time buffer updated to {}s", buf);
     }

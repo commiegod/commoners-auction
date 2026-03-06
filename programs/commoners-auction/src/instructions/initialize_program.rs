@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::state::{ProgramConfig, DiscountTier};
+use crate::errors::AuctionError;
 
 pub fn initialize_program(
     ctx: Context<InitializeProgram>,
@@ -8,7 +9,12 @@ pub fn initialize_program(
     bid_increment_bps: u16,
     time_buffer_secs: i64,
     min_reserve_lamports: u64,
+    required_collection: Option<Pubkey>,
 ) -> Result<()> {
+    require!(default_fee_bps <= 10_000, AuctionError::FeeTooHigh);
+    require!(bid_increment_bps <= 5_000, AuctionError::InvalidBidIncrement);
+    require!(time_buffer_secs >= 0, AuctionError::InvalidTimeBuffer);
+
     let config = &mut ctx.accounts.config;
     config.admin = ctx.accounts.admin.key();
     config.treasury = treasury;
@@ -18,6 +24,7 @@ pub fn initialize_program(
     config.min_reserve_lamports = min_reserve_lamports;
     config.common_token_mint = None;
     config.discount_tiers = [DiscountTier::default(); 4];
+    config.required_collection = required_collection;
     config.bump = ctx.bumps.config;
 
     msg!(

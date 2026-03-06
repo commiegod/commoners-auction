@@ -54,18 +54,17 @@ impl AuctionState {
     }
 
     /// Compute minimum next bid given current bid and increment bps.
+    /// Saturating arithmetic is intentional: if current_bid * increment_bps
+    /// would overflow u64, any realistically possible bid would be lower,
+    /// so the auction effectively closes to further bidding — which is correct.
     pub fn min_next_bid(&self, increment_bps: u16) -> u64 {
         if self.current_bid == 0 {
             self.reserve_price
         } else {
-            self.current_bid
-                .checked_add(
-                    self.current_bid
-                        .checked_mul(increment_bps as u64)
-                        .unwrap_or(u64::MAX)
-                        / 10_000,
-                )
-                .unwrap_or(u64::MAX)
+            let increment = self.current_bid
+                .saturating_mul(increment_bps as u64)
+                / 10_000;
+            self.current_bid.saturating_add(increment)
         }
     }
 }

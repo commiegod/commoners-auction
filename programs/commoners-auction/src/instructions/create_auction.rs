@@ -20,6 +20,10 @@ pub fn create_auction(
         slot.nft_mint == ctx.accounts.nft_mint.key(),
         AuctionError::MintMismatch
     );
+    require!(
+        auction_id == slot.scheduled_date as u64,
+        AuctionError::AuctionIdMismatch
+    );
 
     // Capture values from slot and config before any mutable borrows.
     let seller = slot.owner;

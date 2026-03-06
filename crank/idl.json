@@ -152,6 +152,318 @@
       ]
     },
     {
+      "name": "close_stale_auction",
+      "docs": [
+        "Admin closes a stale auction (ended 3+ days ago, still unsettled).",
+        "Returns the escrowed NFT to the original seller."
+      ],
+      "discriminator": [
+        248,
+        40,
+        163,
+        200,
+        10,
+        21,
+        138,
+        18
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  103,
+                  114,
+                  97,
+                  109,
+                  45,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "auction",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction.auction_id",
+                "account": "AuctionState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "slot",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  108,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "nft_mint"
+              },
+              {
+                "kind": "account",
+                "path": "slot.scheduled_date",
+                "account": "SlotRegistration"
+              }
+            ]
+          }
+        },
+        {
+          "name": "nft_mint"
+        },
+        {
+          "name": "escrow_token_account",
+          "docs": [
+            "Escrow token account holding the NFT (owned by slot PDA)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "slot"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "nft_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "seller_token_account",
+          "docs": [
+            "Seller's token account — receives the NFT back."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "seller"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "nft_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "seller",
+          "writable": true,
+          "relations": [
+            "auction"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "create_auction",
       "docs": [
         "Called by the backend crank at the start of each auction day",
@@ -554,6 +866,12 @@
         {
           "name": "min_reserve_lamports",
           "type": "u64"
+        },
+        {
+          "name": "required_collection",
+          "type": {
+            "option": "pubkey"
+          }
         }
       ]
     },
@@ -584,6 +902,12 @@
         },
         {
           "name": "nft_mint"
+        },
+        {
+          "name": "nft_metadata",
+          "docs": [
+            "Metaplex metadata account for collection verification."
+          ]
         },
         {
           "name": "holder_token_account",
@@ -945,6 +1269,67 @@
         {
           "name": "bid_amount",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "set_required_collection",
+      "docs": [
+        "Admin sets (or clears) the required NFT collection for list_slot.",
+        "Set to the MidEvils collection mint before mainnet launch."
+      ],
+      "discriminator": [
+        153,
+        37,
+        67,
+        111,
+        108,
+        63,
+        72,
+        192
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  103,
+                  114,
+                  97,
+                  109,
+                  45,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "required_collection",
+          "type": {
+            "option": "pubkey"
+          }
         }
       ]
     },
@@ -1679,6 +2064,66 @@
       "code": 6021,
       "name": "TypeTooLong",
       "msg": "Proposal type exceeds maximum length"
+    },
+    {
+      "code": 6022,
+      "name": "CollectionNotVerified",
+      "msg": "NFT collection is not verified or metadata is missing"
+    },
+    {
+      "code": 6023,
+      "name": "CollectionMismatch",
+      "msg": "NFT is not from the required collection"
+    },
+    {
+      "code": 6024,
+      "name": "FeeTooHigh",
+      "msg": "Fee basis points exceed 10000 (100%)"
+    },
+    {
+      "code": 6025,
+      "name": "InvalidBidIncrement",
+      "msg": "Bid increment basis points must be between 0 and 5000"
+    },
+    {
+      "code": 6026,
+      "name": "InvalidTimeBuffer",
+      "msg": "Time buffer seconds must be non-negative"
+    },
+    {
+      "code": 6027,
+      "name": "InvalidScheduledDate",
+      "msg": "Scheduled date must be midnight UTC (Unix timestamp divisible by 86400)"
+    },
+    {
+      "code": 6028,
+      "name": "AuctionIdMismatch",
+      "msg": "auction_id must equal the slot's scheduled_date"
+    },
+    {
+      "code": 6029,
+      "name": "AuctionNotStale",
+      "msg": "Auction must be ended for at least 3 days before it can be closed as stale"
+    },
+    {
+      "code": 6030,
+      "name": "InvalidFinalStatus",
+      "msg": "Invalid finalization status — must be 1 (passed), 2 (failed), or 3 (queued)"
+    },
+    {
+      "code": 6031,
+      "name": "VotingStillActive",
+      "msg": "Voting period is still active — cannot finalize before votes close"
+    },
+    {
+      "code": 6032,
+      "name": "InvalidDuration",
+      "msg": "Proposal duration must be between 1 hour and 7 days"
+    },
+    {
+      "code": 6033,
+      "name": "TallyOverflow",
+      "msg": "Vote tally would exceed the 120-NFT maximum for this collection"
     }
   ],
   "types": [
@@ -1987,6 +2432,18 @@
                 },
                 4
               ]
+            }
+          },
+          {
+            "name": "required_collection",
+            "docs": [
+              "Required NFT collection mint. When set, list_slot verifies the NFT's",
+              "Metaplex metadata and rejects any mint not from this collection.",
+              "Set to the MidEvils collection mint before mainnet launch.",
+              "None on devnet allows testing with arbitrary mints."
+            ],
+            "type": {
+              "option": "pubkey"
             }
           },
           {
