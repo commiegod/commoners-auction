@@ -9,6 +9,7 @@ pub mod cast_vote;
 pub mod finalize_proposal;
 pub mod close_stale_auction;
 pub mod set_required_collection;
+pub mod migrate_config;
 
 pub use initialize_program::*;
 pub use list_slot::*;
@@ -21,3 +22,4 @@ pub use cast_vote::*;
 pub use finalize_proposal::*;
 pub use close_stale_auction::*;
 pub use set_required_collection::*;
+pub use migrate_config::*;

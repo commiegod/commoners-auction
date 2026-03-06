@@ -34,13 +34,14 @@ pub struct ProgramConfig {
     /// Populated via governance vote after COMMON token launches.
     pub discount_tiers: [DiscountTier; 4],
 
+    pub bump: u8,
+
     /// Required NFT collection mint. When set, list_slot verifies the NFT's
     /// Metaplex metadata and rejects any mint not from this collection.
     /// Set to the MidEvils collection mint before mainnet launch.
     /// None on devnet allows testing with arbitrary mints.
+    /// MUST be last field — allows zero-byte realloc migration from pre-collection accounts.
     pub required_collection: Option<Pubkey>,
-
-    pub bump: u8,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Default, InitSpace)]

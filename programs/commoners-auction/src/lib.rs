@@ -161,4 +161,10 @@ pub mod commoners_auction {
     ) -> Result<()> {
         instructions::set_required_collection::set_required_collection(ctx, required_collection)
     }
+
+    /// One-time migration: extends ProgramConfig to add required_collection field.
+    /// Safe to call multiple times — realloc to current size is a no-op.
+    pub fn migrate_config(ctx: Context<MigrateConfig>) -> Result<()> {
+        instructions::migrate_config::migrate_config(ctx)
+    }
 }
